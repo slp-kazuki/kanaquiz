@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>かなリスニング練習</title>
+
+  <!-- ★ PWA用 追加タグ -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#F7B022">
+
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{ --brand-1:#667eea; --brand-2:#764ba2; --ok:#28a745; --ng:#dc3545; --muted:#555; --bg:#f6f7fb; }
+    body{font-family:'Hiragino Sans','Yu Gothic',sans-serif;background:linear-gradient(135deg,var(--brand-1),var(--brand-2));min-height:100vh;padding:20px}
+    .container{width:min(96vw,1024px);margin:0 auto;background:#fff;border-radius:20px;box-shadow:0 20px 40px rgba(0,0,0,.12);overflow:hidden}
+    .header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;background:linear-gradient(45deg,#ff6b6b,#ffa500);color:#fff;padding:18px 20px}
+    .header h1{font-size:clamp(1.1rem,2.4vw,1.8rem);line-height:1.25}
+    .header p{opacity:.9;font-size:.95rem}
+
+    .section{padding:22px}
+
+    /* menu */
+    .menu{padding:22px}
+    .menu h2{font-size:1.2rem;margin-bottom:10px}
+    .menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+    .menu-btn{padding:14px;border-radius:12px;border:none;cursor:pointer;font-weight:700;background:linear-gradient(45deg,#667eea,#764ba2);color:#fff}
+
+    /* progress & quiz */
+    .progress-wrap{display:flex;gap:12px;align-items:center;margin:8px 0 18px}
+    .progress-bar{flex:1;background:#eee;height:10px;border-radius:999px;overflow:hidden}
+    .progress{background:linear-gradient(45deg,#ff6b6b,#ffa500);height:100%;border-radius:999px;transition:width .25s ease}
+    .progress-label{font-size:.95rem;color:var(--muted);min-width:76px;text-align:right}
+
+    .question{text-align:center;margin:8px 0 18px}
+    .qnum{color:#666;font-size:1rem;margin-bottom:10px}
+    .audio-prompt{background:linear-gradient(135deg,var(--brand-1),var(--brand-2));color:#fff;padding:18px;border-radius:14px;margin-bottom:18px}
+    .play{background:rgba(255,255,255,.2);border:2px solid #fff;color:#fff;padding:10px 18px;border-radius:999px;cursor:pointer;font-size:1rem;font-weight:700}
+
+    .options{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+    @media (min-width: 900px){.options{gap:16px}}
+
+    .option{background:#f8f9fa;border:3px solid #e9ecef;padding:22px;border-radius:14px;cursor:pointer;transition:all .12s ease;font-size:2.2rem;text-align:center;font-weight:bold}
+    .option:hover{border-color:var(--brand-1);background:#f0f4ff;transform:translateY(-1px)}
+    .option.selected{border-color:var(--brand-1);background:var(--brand-1);color:#fff}
+    .option.correct{border-color:var(--ok);background:var(--ok);color:#fff}
+    .option.incorrect{border-color:var(--ng);background:var(--ng);color:#fff}
+
+    .controls{display:flex;gap:12px;justify-content:center}
+    .next{background:linear-gradient(45deg,#28a745,#20c997);color:#fff;border:none;padding:12px 22px;border-radius:999px;font-size:1rem;font-weight:700;cursor:pointer;display:none}
+    .restart{background:linear-gradient(45deg,var(--brand-1),var(--brand-2));color:#fff;border:none;padding:12px 22px;border-radius:999px;font-size:1rem;font-weight:700;cursor:pointer;display:none}
+
+    /* results */
+    .results{text-align:center;display:none;margin-top:8px}
+    .score{font-size:2.0rem;color:var(--ok);margin:8px 0}
+    .answer-key{background:#f8f9fa;padding:14px;border-radius:10px;margin-top:14px;text-align:left;max-height:320px;overflow:auto}
+    .answer-item{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #e9ecef;font-size:0.95rem}
+    .answer-item:last-child{border-bottom:none}
+    .wrong-summary{margin-top:14px;background:#fff7f7;border:1px solid #ffd7d7;border-radius:10px;padding:10px}
+
+    /* iPadホームバー対策 */
+    html,body{height:100%}
+    body{padding-bottom:calc(20px + env(safe-area-inset-bottom, 0px));}
+    @supports(padding:constant(safe-area-inset-bottom)){ body{padding-bottom:calc(20px + constant(safe-area-inset-bottom));} }
+    .controls{margin-bottom:calc(10px + env(safe-area-inset-bottom, 0px));}
+    @supports(margin:constant(safe-area-inset-bottom)){ .controls{margin-bottom:calc(10px + constant(safe-area-inset-bottom));} }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>🎧 かなリスニング練習</h1>
+        <p>メニューでモードを選び、音をきいて答えてください。</p>
+      </div>
+    </div>
+
+    <!-- === MENU === -->
+    <div id="menu" class="menu section">
+      <h2>学習メニューを選択</h2>
+      <div class="menu-grid">
+        <button class="menu-btn" data-script="hira" data-mode="chokuon">ひらがな 直音</button>
+        <button class="menu-btn" data-script="hira" data-mode="tanon">ひらがな 単音</button>
+        <button class="menu-btn" data-script="kata" data-mode="chokuon">カタカナ 直音</button>
+        <button class="menu-btn" data-script="kata" data-mode="tanon">カタカナ 単音</button>
+      </div>
+    </div>
+
+    <!-- === QUIZ === -->
+    <div class="section" id="quiz" style="display:none">
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress" id="progress"></div></div>
+        <div class="progress-label" id="progress-label">0%</div>
+      </div>
+
+      <div class="question">
+        <div class="qnum" id="qnum">問題 1</div>
+        <div class="audio-prompt">
+          <h3>🔊 この音を聞いてください</h3>
+          <button class="play" id="play-btn" type="button">▶ 音を再生</button>
+        </div>
+      </div>
+
+      <div class="options" id="options"></div>
+
+      <div class="controls">
+        <button class="next" id="next" type="button">次の問題へ</button>
+        <button class="restart" id="restart" type="button">最初からやり直す</button>
+      </div>
+    </div>
+
+    <!-- === RESULTS === -->
+    <div class="results section" id="results">
+      <h2>📊 結果</h2>
+      <div class="score" id="final-score">0 / 0</div>
+      <p>正解率: <span id="percentage">0%</span></p>
+      <div class="wrong-summary" id="wrong-summary" style="display:none"></div>
+      <div class="answer-key">
+        <h3>📝 誤答一覧（どの音で間違えたか）</h3>
+        <div id="answer-list"></div>
+      </div>
+      <div class="controls" style="margin-top:12px">
+        <button class="restart" id="restart2" type="button">もう一度やる</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  /* ========= 文字集合 ========= */
+  const SEION = ['あ','い','う','え','お','か','き','く','け','こ','さ','し','す','せ','そ','た','ち','つ','て','と','な','に','ぬ','ね','の','は','ひ','ふ','へ','ほ','ま','み','む','め','も','や','ゆ','よ','ら','り','る','れ','ろ','わ','を','ん'];
+  const DAKUON = ['が','ぎ','ぐ','げ','ご','ざ','じ','ず','ぜ','ぞ','だ','ぢ','づ','で','ど','ば','び','ぶ','べ','ぼ'];
+  const HANDAKUON = ['ぱ','ぴ','ぷ','ぺ','ぽ'];
+  const YOON = [
+    'きゃ','きゅ','きょ','しゃ','しゅ','しょ','ちゃ','ちゅ','ちょ','にゃ','にゅ','にょ',
+    'ひゃ','ひゅ','ひょ','みゃ','みゅ','みょ','りゃ','りゅ','りょ',
+    'ぎゃ','ぎゅ','ぎょ','じゃ','じゅ','じょ','ぢゃ','ぢゅ','ぢょ','びゃ','びゅ','びょ','ぴゃ','ぴゅ','ぴょ'
+  ];
+  // 単音モードの特殊は撥音のみ（促音・長音は除外）
+  const TOKUSHU_TANON = ['ん'];
+
+  const CHOKUON_SET = [...SEION, ...DAKUON, ...HANDAKUON];
+  const TANON_SET = [...new Set([...CHOKUON_SET, ...YOON, ...TOKUSHU_TANON])];
+
+  // ひら↔カナ変換
+  const hiraToKata = s => s.replace(/[ぁ-ん]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+  const kataToHira = s => s.replace(/[ァ-ン]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+  const toScript = (arr, script) => script === 'kata' ? arr.map(hiraToKata) : arr;
+
+  /* ========= 音声マップ ========= */
+  const ROMAJI_MAP = {
+    'あ':'a','い':'i','う':'u','え':'e','お':'o',
+    'か':'ka','き':'ki','く':'ku','け':'ke','こ':'ko',
+    'さ':'sa','し':'shi','す':'su','せ':'se','そ':'so',
+    'た':'ta','ち':'chi','つ':'tsu','て':'te','と':'to',
+    'な':'na','に':'ni','ぬ':'nu','ね':'ne','の':'no',
+    'は':'ha','ひ':'hi','ふ':'fu','へ':'he','ほ':'ho',
+    'ま':'ma','み':'mi','む':'mu','め':'me','も':'mo',
+    'や':'ya','ゆ':'yu','よ':'yo',
+    'ら':'ra','り':'ri','る':'ru','れ':'re','ろ':'ro',
+    'わ':'wa','を':'wo','ん':'n',
+    'が':'ga','ぎ':'gi','ぐ':'gu','げ':'ge','ご':'go',
+    'ざ':'za','じ':'ji','ず':'zu','ぜ':'ze','ぞ':'zo',
+    'だ':'da','ぢ':'dji','づ':'dzu','で':'de','ど':'do',
+    'ば':'ba','び':'bi','ぶ':'bu','べ':'be','ぼ':'bo',
+    'ぱ':'pa','ぴ':'pi','ぷ':'pu','ぺ':'pe','ぽ':'po',
+    'きゃ':'kya','きゅ':'kyu','きょ':'kyo',
+    'しゃ':'sha','しゅ':'shu','しょ':'sho',
+    'ちゃ':'cha','ちゅ':'chu','ちょ':'cho',
+    'にゃ':'nya','にゅ':'nyu','にょ':'nyo',
+    'ひゃ':'hya','ひゅ':'hyu','ひょ':'hyo',
+    'みゃ':'mya','みゅ':'myu','みょ':'myo',
+    'りゃ':'rya','りゅ':'ryu','りょ':'ryo',
+    'ぎゃ':'gya','ぎゅ':'gyu','ぎょ':'gyo',
+    'じゃ':'ja','じゅ':'ju','じょ':'jo',
+    'ぢゃ':'dja','ぢゅ':'dju','ぢょ':'djo',
+    'びゃ':'bya','びゅ':'byu','びょ':'byo',
+    'ぴゃ':'pya','ぴゅ':'pyu','ぴょ':'pyo',
+    'っ':'xtsu',
+    'ー':'choon'
+  };
+
+  // 拡張子ルール：濁音・半濁音・拗音・撥音(ん) → .wav、それ以外 → .mp3
+  function getAudioSrc(kana){
+    const hira = /[ァ-ン]/.test(kana) ? kataToHira(kana) : kana;
+    const key = ROMAJI_MAP[hira];
+    if(!key){ console.warn('音声キー未対応:', kana); return ''; }
+    const isWav = (
+      DAKUON.includes(hira) ||
+      HANDAKUON.includes(hira) ||
+      YOON.includes(hira) ||
+      hira === 'ん'
+    );
+    const ext = isWav ? 'wav' : 'mp3';
+    return `audio/${key}.${ext}`;
+  }
+
+  /* ========= クイズ状態 ========= */
+  let CURRENT_SCRIPT = 'hira';
+  let MASTER_KANA = [];
+  let TOTAL = 0;
+  let order = [];
+  let index = 0;
+  let selected = null;
+  let score = 0;
+  let answers = [];
+  let audioEl = null;
+
+  /* ========= DOM ========= */
+  const progressEl = document.getElementById('progress');
+  const progressLabel = document.getElementById('progress-label');
+  const qnumEl = document.getElementById('qnum');
+  const optionsEl = document.getElementById('options');
+  const nextBtn = document.getElementById('next');
+  const restartBtn = document.getElementById('restart');
+  const restartBtn2 = document.getElementById('restart2');
+  const playBtn = document.getElementById('play-btn');
+  const quizEl = document.getElementById('quiz');
+  const resultsEl = document.getElementById('results');
+  const finalScoreEl = document.getElementById('final-score');
+  const percentageEl = document.getElementById('percentage');
+  const answerListEl = document.getElementById('answer-list');
+  const wrongSummaryEl = document.getElementById('wrong-summary');
+
+  /* ========= ユーティリティ ========= */
+  function shuffle(a){const x=[...a];for(let i=x.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]];}return x;}
+
+  // 紛らわしい組み合わせ
+  const CONFUSABLES = {
+    'お':['を'],
+    'を':['お'],
+    'オ':['ヲ'],
+    'ヲ':['オ'],
+    'ず':['づ'],
+    'づ':['ず'],
+    'ズ':['ヅ'],
+    'ヅ':['ズ'],
+    'じゅ':['ぢゅ'],
+    'ぢゅ':['じゅ'],
+    'ジュ':['ヂュ'],
+    'ヂュ':['ジュ']
+  };
+
+  function makeOptions(correct){
+    const banned = new Set(CONFUSABLES[correct]||[]);
+    const rest = MASTER_KANA.filter(k=>k!==correct && !banned.has(k));
+    const distractors = shuffle(rest).slice(0,3);
+    return shuffle([correct, ...distractors]);
+  }
+
+  function updateProgress(){
+    const p = TOTAL ? Math.round((index / TOTAL) * 100) : 0;
+    progressEl.style.width = p + '%';
+    progressLabel.textContent = p + '%';
+  }
+
+  function stopAudio(){ if(audioEl){ audioEl.pause(); audioEl.currentTime=0; } }
+  function playSound(){
+    const kana = order[index];
+    stopAudio();
+    const src = getAudioSrc(kana);
+    if(!src) return;
+    audioEl = new Audio(src);
+    audioEl.play().catch(()=>playBtn.focus());
+  }
+
+  function renderQuestion(){
+    const kana = order[index];
+    qnumEl.textContent = `問題 ${index+1} / ${TOTAL}`;
+
+    const opts = makeOptions(kana);
+    optionsEl.innerHTML = '';
+    opts.forEach((k, i)=>{
+      const el = document.createElement('div');
+      el.className = 'option';
+      el.textContent = k;
+      el.onclick = ()=> selectAnswer(i, opts, kana);
+      optionsEl.appendChild(el);
+    });
+
+    selected = null;
+    nextBtn.style.display = 'none';
+    restartBtn.style.display = 'none';
+    updateProgress();
+  }
+
+  function selectAnswer(i, opts, correct){
+    if(selected!==null) return;
+    selected = i;
+    const nodes = document.querySelectorAll('.option');
+    nodes.forEach((n,idx)=>{ if(idx===i) n.classList.add('selected'); });
+
+    setTimeout(()=>{
+      nodes.forEach((n,idx)=>{
+        n.classList.remove('selected');
+        if(opts[idx]===correct) n.classList.add('correct');
+        else if(idx===i) n.classList.add('incorrect');
+      });
+      const ok = (opts[i]===correct);
+      if(ok){
+        score++;
+        confetti({ particleCount: 24, spread: 45, origin: { y: 0.65 }, scalar: 0.8 });
+      }
+      answers.push({question: correct, selected: opts[i], correct, isCorrect: ok});
+      nextBtn.style.display = 'inline-block';
+      nextBtn.focus();
+    }, 120);
+  }
+
+  function next(){
+    stopAudio();
+    index++;
+    if(index < TOTAL) renderQuestion();
+    else showResults();
+  }
+
+  function showResults(){
+    quizEl.style.display = 'none';
+    resultsEl.style.display = 'block';
+
+    progressEl.style.width = '100%';
+    progressLabel.textContent = '100%';
+
+    finalScoreEl.textContent = `${score} / ${TOTAL}`;
+    const pct = TOTAL ? Math.round((score/TOTAL)*100) : 0;
+    percentageEl.textContent = `${pct}%`;
+
+    answerListEl.innerHTML = '';
+    const wrongs = answers.filter(a=>!a.isCorrect);
+    if(wrongs.length){
+      wrongs.forEach((a, idx)=>{
+        const row = document.createElement('div');
+        row.className = 'answer-item';
+        row.innerHTML = `<span>Q${idx+1} 音: ${a.question}</span><span style="color:#dc3545">選: ${a.selected}（正: ${a.correct}）</span>`;
+        answerListEl.appendChild(row);
+      });
+      const freq = new Map();
+      wrongs.forEach(w=> freq.set(w.question, (freq.get(w.question)||0)+1));
+      const sorted = [...freq.entries()].sort((a,b)=> b[1]-a[1]);
+      const msg = sorted.map(([k,c])=> `${k}×${c}`).join('、');
+      wrongSummaryEl.style.display = 'block';
+      wrongSummaryEl.innerHTML = `❗️ 苦手だった音: ${msg}`;
+    } else {
+      wrongSummaryEl.style.display = 'block';
+      wrongSummaryEl.innerHTML = '🎉 誤答はありません。全問正解です！';
+      const okMsg = document.createElement('div');
+      okMsg.className = 'answer-item';
+      okMsg.innerHTML = '<span>なし</span><span style="color:#28a745">✓</span>';
+      answerListEl.appendChild(okMsg);
+    }
+
+    document.getElementById('restart2').style.display='inline-block';
+  }
+
+  function restart(){
+    stopAudio();
+    order = shuffle(MASTER_KANA);
+    index = 0; selected = null; score = 0; answers = [];
+    quizEl.style.display = 'block';
+    resultsEl.style.display = 'none';
+    document.getElementById('restart2').style.display='none';
+    renderQuestion();
+  }
+
+  /* ========= メニュー処理 ========= */
+  document.querySelectorAll('.menu-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      CURRENT_SCRIPT = btn.dataset.script;
+      const mode = btn.dataset.mode;
+      const base = (mode === 'chokuon') ? CHOKUON_SET : TANON_SET;
+      MASTER_KANA = toScript(base, CURRENT_SCRIPT);
+      TOTAL = MASTER_KANA.length;
+      order = shuffle(MASTER_KANA);
+
+      document.getElementById('menu').style.display = 'none';
+      document.getElementById('quiz').style.display = 'block';
+
+      restart();
+    });
+  });
+
+  nextBtn.addEventListener('click', next);
+  restartBtn.addEventListener('click', ()=>{
+    stopAudio();
+    document.getElementById('quiz').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('menu').style.display = 'block';
+  });
+  document.getElementById('restart2').addEventListener('click', ()=>{
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('quiz').style.display = 'block';
+    restart();
+  });
+  playBtn.addEventListener('click', playSound);
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter' && nextBtn.style.display !== 'none') nextBtn.click();
+  });
+
+  /* ====== 簡易テスト（元からあるテスト＋追加テスト） ====== */
+  console.assert(getAudioSrc('が').endsWith('.wav'), 'が は wav のはず');
+  console.assert(getAudioSrc('ぱ').endsWith('.wav'), 'ぱ は wav のはず');
+  console.assert(getAudioSrc('きゃ').endsWith('.wav'), 'きゃ は wav のはず');
+  console.assert(getAudioSrc('ん').endsWith('.wav'), 'ん は wav のはず');
+  console.assert(getAudioSrc('あ').endsWith('.mp3'), 'あ は mp3 のはず');
+  // 追加テスト（カタカナ）
+  console.assert(getAudioSrc('ガ').endsWith('.wav'), 'ガ は wav のはず');
+  console.assert(getAudioSrc('ア').endsWith('.mp3'), 'ア は mp3 のはず');
+</script>
+
+<!-- ★ PWA Service Worker 登録スクリプト（メインスクリプトとは別） -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(function(registration) {
+          console.log('ServiceWorker registration successful:', registration);
+        })
+        .catch(function(error) {
+          console.log('ServiceWorker registration failed:', error);
+        });
+    });
+  }
+</script>
+
+</body>
+</html>

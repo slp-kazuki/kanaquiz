@@ -1,0 +1,9 @@
+{
+  "name": "かなリスニングクイズ",
+  "short_name": "かなクイズ",
+  "start_url": "./Hiragana_quiz_Index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#F7B022",
+  "icons": []
+}
